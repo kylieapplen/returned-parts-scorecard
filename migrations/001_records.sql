@@ -1,0 +1,21 @@
+create table if not exists records (
+  box text primary key,
+  ticket text not null default '',
+  customer text not null default '',
+  parts jsonb not null default '[]'::jsonb,
+  bench text not null default 'Not tested yet',
+  answers jsonb not null default '{}'::jsonb,
+  crit jsonb not null default '[]'::jsonb,
+  date_triaged text not null default '',
+  missing text not null default '',
+  expected_id text not null default '',
+  actual_id text not null default '',
+  hw_rev text not null default '',
+  triage_notes text not null default '',
+  sheet_action text,
+  sheet_row integer,
+  sheet_error text,
+  sheet_synced_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
