@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
@@ -23,7 +23,10 @@ export async function sql<T = Record<string, unknown>>(
 }
 
 async function startLocal(): Promise<PGlite> {
-  const db = new PGlite();
+  // File-backed so Next.js HMR / route workers don't wipe triage data mid-session.
+  const dataDir = path.join(process.cwd(), ".data", "pglite");
+  await mkdir(dataDir, { recursive: true });
+  const db = new PGlite(dataDir);
   const migrationsDir = path.join(process.cwd(), "migrations");
   const files = (await readdir(migrationsDir).catch(() => []))
     .filter((f) => f.endsWith(".sql"))

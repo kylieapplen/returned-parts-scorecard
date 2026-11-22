@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# local PGlite data
+/.data/
+
 # production
 /build
 
