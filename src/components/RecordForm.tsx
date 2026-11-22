@@ -396,7 +396,15 @@ export function RecordForm({ initial }: Props) {
           </p>
         )}
         {record?.sheetError && !banner && (
-          <div className="banner err">Last sheet error: {record.sheetError}</div>
+          <div
+            className={`banner ${
+              record.sheetError.includes("not configured") ? "warn" : "err"
+            }`}
+          >
+            {record.sheetError.includes("not configured")
+              ? record.sheetError
+              : `Last sheet error: ${record.sheetError}`}
+          </div>
         )}
       </div>
     </>

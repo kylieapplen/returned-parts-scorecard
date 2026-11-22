@@ -30,13 +30,27 @@ async function startLocal(): Promise<PGlite> {
   // File-backed so Next.js HMR / route workers don't wipe triage data mid-session.
   const dataDir = path.join(process.cwd(), ".data", "pglite");
   await mkdir(dataDir, { recursive: true });
-  const db = new PGlite(dataDir);
+  const db = await PGlite.create(dataDir);
+  await db.exec(`
+    create table if not exists schema_migrations (
+      name text primary key,
+      applied_at timestamptz not null default now()
+    )
+  `);
+  const done = new Set(
+    (await db.query<{ name: string }>("select name from schema_migrations")).rows.map(
+      (r) => r.name,
+    ),
+  );
   const migrationsDir = path.join(process.cwd(), "migrations");
   const files = (await readdir(migrationsDir).catch(() => []))
     .filter((f) => f.endsWith(".sql"))
     .sort();
   for (const file of files) {
-    await db.exec(await readFile(path.join(migrationsDir, file), "utf8"));
+    if (done.has(file)) continue;
+    const sqlText = await readFile(path.join(migrationsDir, file), "utf8");
+    await db.exec(sqlText);
+    await db.query("insert into schema_migrations (name) values ($1)", [file]);
   }
   return db;
 }

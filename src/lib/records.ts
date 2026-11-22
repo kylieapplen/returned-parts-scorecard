@@ -204,6 +204,18 @@ export async function markSheetSync(
       where box = $1`,
       [String(box).trim(), result.action || "updated", result.row ?? null],
     );
+  } else if (result.skipped) {
+    await sql(
+      `update records set
+        sheet_error = $2,
+        updated_at = now()
+      where box = $1`,
+      [
+        String(box).trim(),
+        result.error ||
+          "Sheet sync not configured (set SHEET_WEBHOOK and SHEET_SECRET).",
+      ],
+    );
   } else {
     await sql(
       `update records set
