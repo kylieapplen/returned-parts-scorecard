@@ -20,7 +20,8 @@ export default async function HomePage() {
             Returned Parts <span>Scorecard</span>
           </h1>
           <p className="brand-sub">
-            Diagnose returned boxes, then update Diego&apos;s Part Documentation sheet.
+            Diego scores the CS tech on returned-part triage, then syncs status to
+            Part Documentation.
           </p>
         </div>
         <div className="top-actions">

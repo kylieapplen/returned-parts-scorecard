@@ -7,19 +7,38 @@ export type CheckDef = {
 };
 
 /**
- * Bench checks scored for the tech — only what they control at triage.
- * Not scored: packing-list completeness (customer packing), shipping damage
- * (carrier/customer), root cause / disposition (Diego’s diagnosis work).
+ * Diego scores the customer-support tech — only process/quality items
+ * the tech owns. Unit condition, packing, shipping damage, and root-cause
+ * / disposition are out of scope for this scorecard.
  */
 export const CHECKS: CheckDef[] = [
-  { number: 1, label: "Unit powers on and boots cleanly", critical: true },
-  { number: 2, label: "Oven serial is listed", critical: true },
-  { number: 3, label: "Connectors and ports undamaged" },
-  { number: 4, label: "Firmware / software version as expected" },
-  { number: 5, label: "Functional self-test / diagnostics pass", critical: true },
+  {
+    number: 1,
+    label: "Tech powered on the unit and documented the boot/power result",
+    critical: true,
+  },
+  {
+    number: 2,
+    label: "Tech listed the oven serial on the record",
+    critical: true,
+  },
+  {
+    number: 3,
+    label: "Tech inspected connectors/ports and noted the condition",
+  },
+  {
+    number: 4,
+    label: "Tech checked and recorded the firmware / software version",
+  },
+  {
+    number: 5,
+    label: "Tech ran functional self-test / diagnostics and recorded the result",
+    critical: true,
+  },
   {
     number: 6,
-    label: "Customer-reported symptom reproduced (or N/A if none reported)",
+    label:
+      "Tech tried to reproduce the customer-reported symptom (or marked N/A if none)",
   },
 ];
 

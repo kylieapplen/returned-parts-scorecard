@@ -19,7 +19,7 @@ const withCrit = { ...allYes, "2": "No" };
 const coach = scoreAnswers(withCrit, "Fault confirmed");
 assert(coach.result === "Coach", `expected Coach for critical miss`);
 assert(coach.crit.length === 1, `expected one critical`);
-assert(coach.crit[0].includes("Oven serial"), `crit should mention oven serial`);
+assert(coach.crit[0].includes("oven serial"), `crit should mention oven serial`);
 
 const low = scoreAnswers(
   { "1": "Yes", "2": "Yes", "3": "No", "4": "No", "5": "Yes" },

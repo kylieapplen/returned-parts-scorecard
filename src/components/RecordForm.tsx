@@ -327,11 +327,11 @@ export function RecordForm({ initial }: Props) {
       </div>
 
       <div className="panel">
-        <h2>Diagnosis checks</h2>
+        <h2>Tech scorecard (Diego → CS tech)</h2>
         <p className="sheet-note" style={{ marginTop: 0, marginBottom: 12 }}>
-          Tech bench checks only (not packing, shipping damage, or Diego&apos;s
-          root-cause work). Pass = ≥ 85% Yes and no critical misses. Score = Yes ÷
-          (Yes + No).
+          Score only what the support tech did. Unit faults, packing, shipping
+          damage, root cause, and disposition are not part of this score. Pass =
+          ≥ 85% Yes and no critical misses. Score = Yes ÷ (Yes + No).
         </p>
         <div className="checks">
           {CHECKS.map((c) => {
