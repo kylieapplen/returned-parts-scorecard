@@ -1,4 +1,4 @@
-import type { Answer, BenchResult } from "./checks";
+import type { Answer, BenchResult, Sections, TrackingAnswers } from "./checks";
 
 export type RecordInput = {
   box: string;
@@ -7,6 +7,9 @@ export type RecordInput = {
   parts?: string[];
   bench?: BenchResult | string;
   answers?: Record<string, Answer | string>;
+  tracking?: TrackingAnswers;
+  sections?: Sections;
+  criticalMisses?: string[];
   dateTriaged?: string;
   missing?: string;
   expectedId?: string;
@@ -22,6 +25,9 @@ export type StoredRecord = {
   parts: string[];
   bench: string;
   answers: Record<string, string>;
+  tracking: TrackingAnswers;
+  sections: Sections;
+  criticalMisses: string[];
   crit: string[];
   dateTriaged: string;
   missing: string;

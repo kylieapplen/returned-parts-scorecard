@@ -1,31 +1,50 @@
+import { emptySections, emptyTracking } from "./checks";
 import { scoreAnswers } from "./score";
 
 function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(msg);
 }
 
-const allYes: Record<string, string> = {};
-for (let i = 1; i <= 6; i++) allYes[String(i)] = "Yes";
+const tracking = emptyTracking();
+const sections = {
+  ...emptySections(),
+  displayKnobSoftware: true,
+  partShipped: true,
+};
 
-const pass = scoreAnswers(allYes, "No fault found");
+const answers: Record<string, string> = {};
+for (const n of [1, 2, 3, 4, 5, 6, 7, 14, 15, 18]) answers[String(n)] = "Yes";
+
+const pass = scoreAnswers(answers, "No fault found", tracking, sections, []);
 assert(pass.result === "Pass", `expected Pass, got ${pass.result}`);
-assert(pass.pct === 1, `expected 100%, got ${pass.pct}`);
-assert(
-  pass.statusText === "No fault found · Pass 100%",
-  `unexpected status: ${pass.statusText}`,
-);
+assert(pass.pct === 1, `expected 100%`);
 
-const withCrit = { ...allYes, "2": "No" };
-const coach = scoreAnswers(withCrit, "Fault confirmed");
-assert(coach.result === "Coach", `expected Coach for critical miss`);
-assert(coach.crit.length === 1, `expected one critical`);
-assert(coach.crit[0].includes("oven serial"), `crit should mention oven serial`);
+const withMiss = scoreAnswers(answers, "Fault confirmed", tracking, sections, [
+  "ruled_out",
+]);
+assert(withMiss.result === "Coach", "critical miss forces Coach");
+assert(withMiss.crit.length === 1, "one crit label");
 
-const low = scoreAnswers(
-  { "1": "Yes", "2": "Yes", "3": "No", "4": "No", "5": "Yes" },
-  "Needs further diagnosis",
+const bakeTracking = { ...emptyTracking(), bakeDay: "Yes" as const };
+const withBake = scoreAnswers(
+  {
+    "1": "Yes",
+    "2": "Yes",
+    "3": "Yes",
+    "4": "Yes",
+    "5": "Yes",
+    "16": "No",
+  },
+  "No fault found",
+  bakeTracking,
+  emptySections(),
+  [],
 );
-assert(low.result === "Coach", "expected Coach under 85%");
-assert(Math.round((low.pct || 0) * 100) === 60, `expected 60%, got ${low.pct}`);
+assert(withBake.result === "Coach", "5/6 Yes with bake-day miss → Coach");
+assert(Math.round((withBake.pct || 0) * 100) === 83, `expected 83%, got ${withBake.pct}`);
+
+// Tracking alone does not score
+const trackOnly = scoreAnswers({}, "Not tested yet", bakeTracking, emptySections(), []);
+assert(trackOnly.pct === null, "no scored answers yet");
 
 console.log("score.test.ts: ok");

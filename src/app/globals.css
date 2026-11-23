@@ -206,6 +206,61 @@ button {
   margin-right: 6px;
 }
 
+.check-group {
+  margin-top: 18px;
+}
+
+.check-group:first-of-type {
+  margin-top: 0;
+}
+
+.check-group-title {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--accent-ink);
+}
+
+.section-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.toggle-chip input {
+  accent-color: var(--accent);
+}
+
+.miss-row {
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.miss-row input {
+  accent-color: var(--danger);
+  width: 16px;
+  height: 16px;
+}
+
+.miss-row.miss-on {
+  border-color: color-mix(in srgb, var(--danger) 35%, white);
+  background: var(--danger-bg);
+}
+
 .seg {
   display: inline-flex;
   border: 1px solid var(--line);

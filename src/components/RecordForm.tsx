@@ -2,7 +2,19 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BENCH_OPTIONS, CHECKS, type Answer } from "@/lib/checks";
+import {
+  BENCH_OPTIONS,
+  CRITICAL_MISSES,
+  SECTION_TOGGLES,
+  TRACKING_QUESTIONS,
+  applicableChecks,
+  emptySections,
+  emptyTracking,
+  sectionHeading,
+  type Answer,
+  type Sections,
+  type TrackingAnswers,
+} from "@/lib/checks";
 import { scoreAnswers } from "@/lib/score";
 import type { StoredRecord } from "@/lib/types";
 
@@ -17,6 +29,9 @@ type FormState = {
   partsText: string;
   bench: string;
   answers: Record<string, Answer>;
+  tracking: TrackingAnswers;
+  sections: Sections;
+  criticalMisses: string[];
   dateTriaged: string;
   missing: string;
   expectedId: string;
@@ -34,9 +49,8 @@ function todayYmd(): string {
 
 function fromRecord(r?: StoredRecord | null): FormState {
   const answers: Record<string, Answer> = {};
-  for (const c of CHECKS) {
-    const v = r?.answers?.[String(c.number)];
-    answers[String(c.number)] = v === "Yes" || v === "No" ? v : "";
+  for (const [k, v] of Object.entries(r?.answers || {})) {
+    if (v === "Yes" || v === "No") answers[k] = v;
   }
   return {
     box: r?.box || "",
@@ -45,6 +59,9 @@ function fromRecord(r?: StoredRecord | null): FormState {
     partsText: (r?.parts || []).join(", "),
     bench: r?.bench || "Not tested yet",
     answers,
+    tracking: { ...emptyTracking(), ...(r?.tracking || {}) },
+    sections: { ...emptySections(), ...(r?.sections || {}) },
+    criticalMisses: r?.criticalMisses || [],
     dateTriaged: r?.dateTriaged || todayYmd(),
     missing: r?.missing || "",
     expectedId: r?.expectedId || "",
@@ -54,13 +71,16 @@ function fromRecord(r?: StoredRecord | null): FormState {
   };
 }
 
-function sheetMessage(record: StoredRecord, sheet: {
-  ok?: boolean;
-  action?: string;
-  row?: number;
-  error?: string;
-  skipped?: boolean;
-} | null): { kind: "ok" | "warn" | "err"; text: string } | null {
+function sheetMessage(
+  _record: StoredRecord,
+  sheet: {
+    ok?: boolean;
+    action?: string;
+    row?: number;
+    error?: string;
+    skipped?: boolean;
+  } | null,
+): { kind: "ok" | "warn" | "err"; text: string } | null {
   if (!sheet) return null;
   if (sheet.skipped) {
     return {
@@ -80,6 +100,35 @@ function sheetMessage(record: StoredRecord, sheet: {
   };
 }
 
+function YesNo({
+  value,
+  onChange,
+  label,
+}: {
+  value: Answer;
+  onChange: (v: Answer) => void;
+  label: string;
+}) {
+  return (
+    <div className="seg" role="group" aria-label={label}>
+      <button
+        type="button"
+        className={value === "Yes" ? "active-yes" : ""}
+        onClick={() => onChange(value === "Yes" ? "" : "Yes")}
+      >
+        Yes
+      </button>
+      <button
+        type="button"
+        className={value === "No" ? "active-no" : ""}
+        onClick={() => onChange(value === "No" ? "" : "No")}
+      >
+        No
+      </button>
+    </div>
+  );
+}
+
 export function RecordForm({ initial }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(() => fromRecord(initial));
@@ -90,19 +139,50 @@ export function RecordForm({ initial }: Props) {
   const [pending, startTransition] = useTransition();
   const [syncing, setSyncing] = useState(false);
 
-  const liveScore = useMemo(
-    () => scoreAnswers(form.answers, form.bench),
-    [form.answers, form.bench],
+  const visibleChecks = useMemo(
+    () => applicableChecks(form.tracking, form.sections),
+    [form.tracking, form.sections],
   );
+
+  const liveScore = useMemo(
+    () =>
+      scoreAnswers(
+        form.answers,
+        form.bench,
+        form.tracking,
+        form.sections,
+        form.criticalMisses,
+      ),
+    [form.answers, form.bench, form.tracking, form.sections, form.criticalMisses],
+  );
+
+  const grouped = useMemo(() => {
+    const groups: { heading: string; checks: typeof visibleChecks }[] = [];
+    for (const check of visibleChecks) {
+      const heading = sectionHeading(check.section);
+      const last = groups[groups.length - 1];
+      if (last && last.heading === heading) last.checks.push(check);
+      else groups.push({ heading, checks: [check] });
+    }
+    return groups;
+  }, [visibleChecks]);
 
   function setAnswer(n: number, value: Answer) {
     setForm((prev) => ({
       ...prev,
-      answers: { ...prev.answers, [String(n)]: prev.answers[String(n)] === value ? "" : value },
+      answers: {
+        ...prev.answers,
+        [String(n)]: prev.answers[String(n)] === value ? "" : value,
+      },
     }));
   }
 
   function payload() {
+    const allowed = new Set(visibleChecks.map((c) => String(c.number)));
+    const answers: Record<string, Answer> = {};
+    for (const [k, v] of Object.entries(form.answers)) {
+      if (allowed.has(k) && (v === "Yes" || v === "No")) answers[k] = v;
+    }
     return {
       box: form.box.trim(),
       ticket: form.ticket.trim(),
@@ -112,7 +192,10 @@ export function RecordForm({ initial }: Props) {
         .map((p) => p.trim())
         .filter(Boolean),
       bench: form.bench,
-      answers: form.answers,
+      answers,
+      tracking: form.tracking,
+      sections: form.sections,
+      criticalMisses: form.criticalMisses,
       dateTriaged: form.dateTriaged,
       missing: form.missing.trim(),
       expectedId: form.expectedId.trim(),
@@ -165,9 +248,6 @@ export function RecordForm({ initial }: Props) {
     }
     setSyncing(true);
     try {
-      // Persist latest form first, without auto-sync, then push to the sheet.
-      // Apps Script matches on Box ID and updates K/L when the row exists,
-      // so a prior timed-out append will not create a duplicate.
       const isNew = !initial?.box && !record?.box;
       const saveRes = await fetch(
         isNew ? "/api/records" : `/api/records/${encodeURIComponent(body.box)}`,
@@ -195,9 +275,7 @@ export function RecordForm({ initial }: Props) {
           text: out.error || "Sheet sync finished",
         },
       );
-      if (isNew) {
-        router.replace(`/r/${encodeURIComponent(body.box)}`);
-      }
+      if (isNew) router.replace(`/r/${encodeURIComponent(body.box)}`);
       router.refresh();
     } catch (err) {
       setBanner({
@@ -216,7 +294,7 @@ export function RecordForm({ initial }: Props) {
     <>
       <div className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <h2>Triage</h2>
+          <h2>Call / box</h2>
           <span className={`score-pill ${resultClass}`}>
             {liveScore.statusText || "No score yet"}
           </span>
@@ -242,7 +320,7 @@ export function RecordForm({ initial }: Props) {
             />
           </div>
           <div className="field">
-            <label htmlFor="customer">Shipped by (customer)</label>
+            <label htmlFor="customer">Customer</label>
             <input
               id="customer"
               value={form.customer}
@@ -255,42 +333,22 @@ export function RecordForm({ initial }: Props) {
               id="ticket"
               value={form.ticket}
               onChange={(e) => setForm({ ...form, ticket: e.target.value })}
-              placeholder="1234567890"
             />
           </div>
           <div className="field full">
-            <label htmlFor="parts">Part description (comma-separated)</label>
+            <label htmlFor="parts">Parts sent (comma-separated)</label>
             <input
               id="parts"
               value={form.partsText}
               onChange={(e) => setForm({ ...form, partsText: e.target.value })}
-              placeholder="Main board, Power cable"
-            />
-          </div>
-          <div className="field full">
-            <label htmlFor="missing">Missing</label>
-            <input
-              id="missing"
-              value={form.missing}
-              onChange={(e) => setForm({ ...form, missing: e.target.value })}
             />
           </div>
           <div className="field">
-            <label htmlFor="expectedId">Oven serial (listed)</label>
+            <label htmlFor="expectedId">Oven serial</label>
             <input
               id="expectedId"
               value={form.expectedId}
               onChange={(e) => setForm({ ...form, expectedId: e.target.value })}
-              placeholder="Serial from ticket / label"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="actualId">Oven serial (verified at bench)</label>
-            <input
-              id="actualId"
-              value={form.actualId}
-              onChange={(e) => setForm({ ...form, actualId: e.target.value })}
-              placeholder="Optional — if confirmed on unit"
             />
           </div>
           <div className="field">
@@ -302,7 +360,7 @@ export function RecordForm({ initial }: Props) {
             />
           </div>
           <div className="field">
-            <label htmlFor="bench">Bench result</label>
+            <label htmlFor="bench">Bench result (Diego)</label>
             <select
               id="bench"
               value={form.bench}
@@ -316,7 +374,7 @@ export function RecordForm({ initial }: Props) {
             </select>
           </div>
           <div className="field full">
-            <label htmlFor="triageNotes">Triage notes</label>
+            <label htmlFor="triageNotes">Notes</label>
             <textarea
               id="triageNotes"
               value={form.triageNotes}
@@ -327,45 +385,138 @@ export function RecordForm({ initial }: Props) {
       </div>
 
       <div className="panel">
-        <h2>Tech scorecard (Diego → CS tech)</h2>
+        <h2>Tracking (not scored)</h2>
         <p className="sheet-note" style={{ marginTop: 0, marginBottom: 12 }}>
-          Score only what the support tech did. Unit faults, packing, shipping
-          damage, root cause, and disposition are not part of this score. Pass =
-          ≥ 85% Yes and no critical misses. Score = Yes ÷ (Yes + No).
+          These only decide which scored checks appear.
         </p>
         <div className="checks">
-          {CHECKS.map((c) => {
-            const value = form.answers[String(c.number)] || "";
-            return (
-              <div key={c.number} className={`check-row${c.critical ? " critical" : ""}`}>
-                <div className="check-label">
-                  <strong>{c.number}.</strong>
-                  {c.label}
-                </div>
-                <div className="seg" role="group" aria-label={`Check ${c.number}`}>
-                  <button
-                    type="button"
-                    className={value === "Yes" ? "active-yes" : ""}
-                    onClick={() => setAnswer(c.number, "Yes")}
-                  >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    className={value === "No" ? "active-no" : ""}
-                    onClick={() => setAnswer(c.number, "No")}
-                  >
-                    No
-                  </button>
+          {TRACKING_QUESTIONS.map((q) => (
+            <div key={q.key} className="check-row">
+              <div className="check-label">
+                <strong>{q.label}</strong>
+                <div className="sheet-note" style={{ margin: "4px 0 0" }}>
+                  {q.help}
                 </div>
               </div>
+              <YesNo
+                label={q.label}
+                value={form.tracking[q.key]}
+                onChange={(v) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    tracking: { ...prev.tracking, [q.key]: v },
+                  }))
+                }
+              />
+            </div>
+          ))}
+        </div>
+        {form.tracking.bakeDay === "Yes" && (
+          <p className="sheet-note">Bake day → shows check 16 when a part ships section is in play.</p>
+        )}
+        {form.tracking.repeatFailure === "Yes" && (
+          <p className="sheet-note">Repeat failure → shows check 17 (Engineering loop-in).</p>
+        )}
+        {form.tracking.safetyConcern === "Yes" && (
+          <div className="banner warn" style={{ marginTop: 12 }}>
+            Safety concern on the call — verify check 4 (all five questions + unplug) and
+            use a critical miss if Engineering wasn’t looped in when required.
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <h2>Which sections apply?</h2>
+        <p className="sheet-note" style={{ marginTop: 0, marginBottom: 12 }}>
+          Turn on the problem types for this call. Extra part-type toggles unlock
+          valve / control-board checks.
+        </p>
+        <div className="section-toggles">
+          {SECTION_TOGGLES.map((s) => (
+            <label key={s.key} className="toggle-chip">
+              <input
+                type="checkbox"
+                checked={form.sections[s.key]}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    sections: { ...prev.sections, [s.key]: e.target.checked },
+                  }))
+                }
+              />
+              {s.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2>Tech scorecard</h2>
+        <p className="sheet-note" style={{ marginTop: 0, marginBottom: 12 }}>
+          Pass = ≥ 85% Yes among answered applicable checks, and no critical
+          misses. Unanswered checks are skipped. Score = Yes ÷ (Yes + No).
+        </p>
+
+        {grouped.map((group) => (
+          <div key={group.heading} className="check-group">
+            <h3 className="check-group-title">{group.heading}</h3>
+            <div className="checks">
+              {group.checks.map((c) => {
+                const value = form.answers[String(c.number)] || "";
+                return (
+                  <div key={c.number} className="check-row">
+                    <div className="check-label">
+                      <strong>{c.number}.</strong>
+                      {c.label}
+                    </div>
+                    <YesNo
+                      label={`Check ${c.number}`}
+                      value={value}
+                      onChange={(v) => setAnswer(c.number, v)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {visibleChecks.length === 0 && (
+          <p className="empty">Turn on a section above to show scored checks.</p>
+        )}
+      </div>
+
+      <div className="panel">
+        <h2>Critical misses</h2>
+        <p className="sheet-note" style={{ marginTop: 0, marginBottom: 12 }}>
+          Any one checked makes the result Coach, whatever the percentage.
+        </p>
+        <div className="checks">
+          {CRITICAL_MISSES.map((m) => {
+            const on = form.criticalMisses.includes(m.id);
+            return (
+              <label key={m.id} className={`check-row miss-row${on ? " miss-on" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      criticalMisses: e.target.checked
+                        ? [...prev.criticalMisses, m.id]
+                        : prev.criticalMisses.filter((id) => id !== m.id),
+                    }))
+                  }
+                />
+                <span className="check-label">{m.label}</span>
+              </label>
             );
           })}
         </div>
 
         {liveScore.crit.length > 0 && (
           <div className="banner warn" style={{ marginTop: 12 }}>
-            Critical misses: {liveScore.crit.join("; ")}
+            Critical miss → Coach
           </div>
         )}
 
@@ -392,11 +543,7 @@ export function RecordForm({ initial }: Props) {
 
         {record?.sheetSyncedAt && record.sheetAction && !banner && (
           <p className="sheet-note">
-            Last sheet sync: {record.sheetAction} row {record.sheetRow} ·{" "}
-            {new Date(record.sheetSyncedAt).toLocaleString("en-US", {
-              timeZone: "America/Los_Angeles",
-            })}{" "}
-            PT
+            Last sheet sync: {record.sheetAction} row {record.sheetRow}
           </p>
         )}
         {record?.sheetError && !banner && (

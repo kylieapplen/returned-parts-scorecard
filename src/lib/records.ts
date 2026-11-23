@@ -1,4 +1,10 @@
 import { sql } from "./db";
+import {
+  emptySections,
+  emptyTracking,
+  type Sections,
+  type TrackingAnswers,
+} from "./checks";
 import { scoreAnswers } from "./score";
 import type { RecordInput, StoredRecord } from "./types";
 
@@ -10,6 +16,9 @@ type Row = {
   bench: string;
   answers: unknown;
   crit: unknown;
+  tracking?: unknown;
+  sections?: unknown;
+  critical_misses?: unknown;
   date_triaged: string;
   missing: string;
   expected_id: string;
@@ -53,6 +62,27 @@ function asAnswerMap(v: unknown): Record<string, string> {
   return {};
 }
 
+function asTracking(v: unknown): TrackingAnswers {
+  const base = emptyTracking();
+  const obj = asAnswerMap(v);
+  for (const key of Object.keys(base) as (keyof TrackingAnswers)[]) {
+    const val = obj[key];
+    if (val === "Yes" || val === "No") base[key] = val;
+  }
+  return base;
+}
+
+function asSections(v: unknown): Sections {
+  const base = emptySections();
+  if (!v || typeof v !== "object") return base;
+  const obj = v as Record<string, unknown>;
+  for (const key of Object.keys(base) as (keyof Sections)[]) {
+    if (typeof obj[key] === "boolean") base[key] = obj[key];
+    else if (obj[key] === "true" || obj[key] === true) base[key] = true;
+  }
+  return base;
+}
+
 function iso(v: string | Date | null | undefined): string | null {
   if (v == null) return null;
   if (v instanceof Date) return v.toISOString();
@@ -61,7 +91,16 @@ function iso(v: string | Date | null | undefined): string | null {
 
 function mapRow(row: Row): StoredRecord {
   const answers = asAnswerMap(row.answers);
-  const scored = scoreAnswers(answers, row.bench);
+  const tracking = asTracking(row.tracking);
+  const sections = asSections(row.sections);
+  const criticalMisses = asStringArray(row.critical_misses);
+  const scored = scoreAnswers(
+    answers,
+    row.bench,
+    tracking,
+    sections,
+    criticalMisses,
+  );
   return {
     box: row.box,
     ticket: row.ticket ?? "",
@@ -69,7 +108,10 @@ function mapRow(row: Row): StoredRecord {
     parts: asStringArray(row.parts),
     bench: row.bench,
     answers,
-    crit: asStringArray(row.crit).length ? asStringArray(row.crit) : scored.crit,
+    tracking,
+    sections,
+    criticalMisses,
+    crit: scored.crit,
     dateTriaged: row.date_triaged ?? "",
     missing: row.missing ?? "",
     expectedId: row.expected_id ?? "",
@@ -92,6 +134,9 @@ export function normalizeInput(input: RecordInput): RecordInput & {
   box: string;
   parts: string[];
   answers: Record<string, string>;
+  tracking: TrackingAnswers;
+  sections: Sections;
+  criticalMisses: string[];
   crit: string[];
 } {
   const box = String(input.box || "").trim();
@@ -102,7 +147,16 @@ export function normalizeInput(input: RecordInput): RecordInput & {
   for (const [k, v] of Object.entries(input.answers || {})) {
     if (v === "Yes" || v === "No") answers[String(k)] = v;
   }
-  const scored = scoreAnswers(answers, input.bench || "Not tested yet");
+  const tracking = asTracking(input.tracking || {});
+  const sections = asSections(input.sections || {});
+  const criticalMisses = (input.criticalMisses || []).map(String);
+  const scored = scoreAnswers(
+    answers,
+    input.bench || "Not tested yet",
+    tracking,
+    sections,
+    criticalMisses,
+  );
   return {
     box,
     ticket: String(input.ticket || "").trim(),
@@ -110,6 +164,9 @@ export function normalizeInput(input: RecordInput): RecordInput & {
     parts,
     bench: input.bench || "Not tested yet",
     answers,
+    tracking,
+    sections,
+    criticalMisses,
     crit: scored.crit,
     dateTriaged: String(input.dateTriaged || "").trim(),
     missing: String(input.missing || "").trim(),
@@ -141,11 +198,13 @@ export async function upsertRecord(input: RecordInput): Promise<StoredRecord> {
   await sql(
     `insert into records (
       box, ticket, customer, parts, bench, answers, crit,
+      tracking, sections, critical_misses,
       date_triaged, missing, expected_id, actual_id, hw_rev, triage_notes,
       updated_at
     ) values (
       $1, $2, $3, $4::jsonb, $5, $6::jsonb, $7::jsonb,
-      $8, $9, $10, $11, $12, $13, now()
+      $8::jsonb, $9::jsonb, $10::jsonb,
+      $11, $12, $13, $14, $15, $16, now()
     )
     on conflict (box) do update set
       ticket = excluded.ticket,
@@ -154,6 +213,9 @@ export async function upsertRecord(input: RecordInput): Promise<StoredRecord> {
       bench = excluded.bench,
       answers = excluded.answers,
       crit = excluded.crit,
+      tracking = excluded.tracking,
+      sections = excluded.sections,
+      critical_misses = excluded.critical_misses,
       date_triaged = excluded.date_triaged,
       missing = excluded.missing,
       expected_id = excluded.expected_id,
@@ -169,6 +231,9 @@ export async function upsertRecord(input: RecordInput): Promise<StoredRecord> {
       r.bench,
       JSON.stringify(r.answers),
       JSON.stringify(r.crit),
+      JSON.stringify(r.tracking),
+      JSON.stringify(r.sections),
+      JSON.stringify(r.criticalMisses),
       r.dateTriaged,
       r.missing,
       r.expectedId,
