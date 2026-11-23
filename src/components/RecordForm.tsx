@@ -412,10 +412,10 @@ export function RecordForm({ initial }: Props) {
           ))}
         </div>
         {form.tracking.bakeDay === "Yes" && (
-          <p className="sheet-note">Bake day → shows check 16 when a part ships section is in play.</p>
+          <p className="sheet-note">Bake day → check 16 appears below.</p>
         )}
         {form.tracking.repeatFailure === "Yes" && (
-          <p className="sheet-note">Repeat failure → shows check 17 (Engineering loop-in).</p>
+          <p className="sheet-note">Repeat failure → check 17 appears below.</p>
         )}
         {form.tracking.safetyConcern === "Yes" && (
           <div className="banner warn" style={{ marginTop: 12 }}>
