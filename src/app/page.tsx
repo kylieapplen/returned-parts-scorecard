@@ -4,7 +4,13 @@ import { listRecords } from "@/lib/records";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const records = await listRecords();
+  let records: Awaited<ReturnType<typeof listRecords>> = [];
+  let loadError: string | null = null;
+  try {
+    records = await listRecords();
+  } catch (err) {
+    loadError = err instanceof Error ? err.message : String(err);
+  }
 
   return (
     <main className="app-shell">
@@ -26,7 +32,9 @@ export default async function HomePage() {
 
       <section className="panel">
         <h2>Boxes</h2>
-        {records.length === 0 ? (
+        {loadError ? (
+          <p className="empty">Could not load boxes yet. Try refresh. ({loadError})</p>
+        ) : records.length === 0 ? (
           <p className="empty">No records yet. Start with a new box triage.</p>
         ) : (
           <div className="list">

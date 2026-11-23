@@ -4,6 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
 
 const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+const onVercel = Boolean(process.env.VERCEL);
 let pool: pg.Pool | undefined;
 
 type GlobalDb = typeof globalThis & {
@@ -27,10 +28,18 @@ export async function sql<T = Record<string, unknown>>(
 }
 
 async function startLocal(): Promise<PGlite> {
-  // File-backed so Next.js HMR / route workers don't wipe triage data mid-session.
-  const dataDir = path.join(process.cwd(), ".data", "pglite");
-  await mkdir(dataDir, { recursive: true });
-  const db = await PGlite.create(dataDir);
+  // Vercel serverless: in-memory PGlite (no persistent disk). For durable
+  // storage, set DATABASE_URL (e.g. Vercel Postgres / Neon).
+  // Local/dev: file-backed under .data so HMR doesn't wipe records.
+  let db: PGlite;
+  if (onVercel) {
+    db = await PGlite.create();
+  } else {
+    const dataDir = path.join(process.cwd(), ".data", "pglite");
+    await mkdir(dataDir, { recursive: true });
+    db = await PGlite.create(dataDir);
+  }
+
   await db.exec(`
     create table if not exists schema_migrations (
       name text primary key,
