@@ -137,7 +137,7 @@ export const CHECKS: CheckDef[] = [
     number: 15,
     section: "partShipped",
     label:
-      "One part per problem: extras only with Engineering or CSM approval written on the ticket",
+      "One part per problem — or extras only with Engineering or CSM approval written on the ticket",
   },
   {
     number: 16,
@@ -166,7 +166,8 @@ export const CRITICAL_MISSES: CriticalMissDef[] = [
   },
   {
     id: "multi_part_no_test",
-    label: "More than one part was sent without a test proving each one bad",
+    label:
+      "Extra parts were sent without Engineering or CSM approval written on the ticket (extras are OK when that approval is on the ticket)",
   },
   {
     id: "repeat_no_eng",
