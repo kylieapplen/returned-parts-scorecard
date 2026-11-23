@@ -9,7 +9,7 @@ export default function NewRecordPage() {
           <h1 className="brand">
             Returned Parts <span>Scorecard</span>
           </h1>
-          <p className="brand-sub">New box triage</p>
+          <p className="brand-sub">New box — score the CS tech’s triage work</p>
         </div>
         <div className="top-actions">
           <Link className="btn btn-secondary" href="/">
