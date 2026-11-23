@@ -276,19 +276,21 @@ export function RecordForm({ initial }: Props) {
             />
           </div>
           <div className="field">
-            <label htmlFor="expectedId">Expected UUID / S/N</label>
+            <label htmlFor="expectedId">Oven serial (listed)</label>
             <input
               id="expectedId"
               value={form.expectedId}
               onChange={(e) => setForm({ ...form, expectedId: e.target.value })}
+              placeholder="Serial from ticket / label"
             />
           </div>
           <div className="field">
-            <label htmlFor="actualId">Actual UUID (power-on)</label>
+            <label htmlFor="actualId">Oven serial (verified at bench)</label>
             <input
               id="actualId"
               value={form.actualId}
               onChange={(e) => setForm({ ...form, actualId: e.target.value })}
+              placeholder="Optional — if confirmed on unit"
             />
           </div>
           <div className="field">
@@ -327,7 +329,9 @@ export function RecordForm({ initial }: Props) {
       <div className="panel">
         <h2>Diagnosis checks</h2>
         <p className="sheet-note" style={{ marginTop: 0, marginBottom: 12 }}>
-          Pass requires ≥ 85% Yes and no critical misses. Score = Yes ÷ (Yes + No).
+          Tech bench checks only (not packing, shipping damage, or Diego&apos;s
+          root-cause work). Pass = ≥ 85% Yes and no critical misses. Score = Yes ÷
+          (Yes + No).
         </p>
         <div className="checks">
           {CHECKS.map((c) => {

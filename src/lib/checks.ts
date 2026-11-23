@@ -6,18 +6,21 @@ export type CheckDef = {
   critical?: boolean;
 };
 
-/** Diagnosis checks that apply to a returned-part bench session. */
+/**
+ * Bench checks scored for the tech — only what they control at triage.
+ * Not scored: packing-list completeness (customer packing), shipping damage
+ * (carrier/customer), root cause / disposition (Diego’s diagnosis work).
+ */
 export const CHECKS: CheckDef[] = [
-  { number: 1, label: "Box contents match packing list / ticket", critical: true },
-  { number: 2, label: "Expected UUID / S/N matches power-on ID", critical: true },
-  { number: 3, label: "Unit powers on and boots cleanly", critical: true },
-  { number: 4, label: "No visible shipping or handling damage" },
-  { number: 5, label: "Connectors and ports undamaged" },
-  { number: 6, label: "Firmware / software version as expected" },
-  { number: 7, label: "Functional self-test / diagnostics pass", critical: true },
-  { number: 8, label: "Customer-reported symptom reproduced (or N/A if none)" },
-  { number: 9, label: "Root cause identified and documented" },
-  { number: 10, label: "Disposition recommendation recorded" },
+  { number: 1, label: "Unit powers on and boots cleanly", critical: true },
+  { number: 2, label: "Oven serial is listed", critical: true },
+  { number: 3, label: "Connectors and ports undamaged" },
+  { number: 4, label: "Firmware / software version as expected" },
+  { number: 5, label: "Functional self-test / diagnostics pass", critical: true },
+  {
+    number: 6,
+    label: "Customer-reported symptom reproduced (or N/A if none reported)",
+  },
 ];
 
 export const BENCH_OPTIONS = [

@@ -5,7 +5,7 @@ function assert(cond: unknown, msg: string) {
 }
 
 const allYes: Record<string, string> = {};
-for (let i = 1; i <= 10; i++) allYes[String(i)] = "Yes";
+for (let i = 1; i <= 6; i++) allYes[String(i)] = "Yes";
 
 const pass = scoreAnswers(allYes, "No fault found");
 assert(pass.result === "Pass", `expected Pass, got ${pass.result}`);
@@ -19,6 +19,7 @@ const withCrit = { ...allYes, "2": "No" };
 const coach = scoreAnswers(withCrit, "Fault confirmed");
 assert(coach.result === "Coach", `expected Coach for critical miss`);
 assert(coach.crit.length === 1, `expected one critical`);
+assert(coach.crit[0].includes("Oven serial"), `crit should mention oven serial`);
 
 const low = scoreAnswers(
   { "1": "Yes", "2": "Yes", "3": "No", "4": "No", "5": "Yes" },
